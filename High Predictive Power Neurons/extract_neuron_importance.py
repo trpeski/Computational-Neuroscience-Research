@@ -28,9 +28,9 @@ hyperparameters = {
     'kernel_size': [6],
     'dense_units': [64],
     'dropout_rate': [0.3],
-    'l2_reg': [0.001],
+    'l2_reg': [0.002],
     'batch_size': [128],
-    'epochs': [10],
+    'epochs': [15],
     'learning_rate': [0.001]
 }
 
@@ -101,6 +101,8 @@ def import_data(layer, rop=None, area='V1', hpp=None):
 
 #X, y = import_data('L234', rop=True, area='V1', hpp=True)
 X, y = import_data('L234', rop=True, area='V1')
+
+print(len(X), len(y))
 neuronids = X.columns
 
 # Convert X to numpy array and reshape for Conv1D
@@ -112,11 +114,8 @@ X = X[..., np.newaxis]  # Shape becomes: (num_samples, num_neurons, 1)
 num_classes = 16
 y = tf.keras.utils.to_categorical(y, num_classes)
 
-
-#statified k folds 
+#k folds 
 skf = KFold(n_splits=5, shuffle=True, random_state=42)
-#skf.get_n_splits(X, y)
-
 
 # Generate all combinations of hyperparameters
 keys = list(hyperparameters.keys())
@@ -220,7 +219,7 @@ def evaluate_permuted_neuron(neuron_index, n_repeats=15):
 
         # Normalize the importance by the baseline accuracy
         normalized_importance = (baseline_accuracy - accuracy) / baseline_accuracy
-        print(f"Neuron {neuronids[neuron_index]} - Accuracy: {accuracy*100:.2f}% - Normalized Importance: {normalized_importance}")
+        #print(f"Neuron {neuronids[neuron_index]} - Accuracy: {accuracy*100:.2f}% - Normalized Importance: {normalized_importance}")
         scores.append(normalized_importance)
         
 
@@ -259,71 +258,16 @@ else:
 
     # Save the final importances to a file
     #np.save(feature_importances_path, feature_importances)
-    feature_importances = pd.Series(feature_importances)
+    feature_importances = pd.DataFrame(pd.Series(feature_importances), columns=['importance'])
+    print(feature_importances)
     feature_importances.to_feather(feature_importances_path)
-    print("Saved final feature importances to 'feature_importances.npy'")
+    print("Saved final feature importances to 'feature_importances.feather'")
 
 # Sort neurons by importance
 sorted_neurons = sorted(feature_importances.items(), key=lambda x: x[1], reverse=True)
 
 # Print the most important neurons
 print("Most important neurons:")
-for neuron, importance in sorted_neurons[:10]:
-    print(f"Group {neuron} - Importance: {importance}")
+for neuron, importance in sorted_neurons[:50]:
+    print(f"Neuron {neuron} - Importance: {importance}")
 
-# Optionally, retrain the model using only the most important neurons
-N = 37 # Number of top neurons to keep
-top_neurons = [neuron_key for neuron_key, _ in sorted_neurons[:N]]
-selected_neurons = np.concatenate(top_neurons)
-
-print(f"Number of neurons kept: {len(selected_neurons)}")
-
-# Select columns from X_train_full and X_val
-X_train_reduced = X[:, selected_neurons, :]
-X_val_reduced = X[:, selected_neurons, :]
-
-# Save the most important neurons to a file 
-np.save('/home/psilou/code/misc/tony/selected_neurons.npy', selected_neurons)
-
-# Number of selected features
-num_selected_features = X_train_reduced.shape[1]
-input_shape = (num_selected_features, X_train_reduced.shape[2])
-
-# Redefine the model with the new input shape
-model = models.Sequential()
-model.add(layers.Conv1D(filters=16, kernel_size=6, activation='relu', input_shape=input_shape))
-model.add(layers.MaxPooling1D(pool_size=2))
-model.add(layers.Flatten())
-model.add(layers.Dense(128, activation='relu',kernel_regularizer=regularizers.l2(0.001)))
-model.add(layers.Dropout(0.3))
-model.add(layers.Dense(128, activation='relu', kernel_regularizer=regularizers.l2(0.001)))
-model.add(layers.Dense(num_classes, activation='softmax'))
-
-model.compile(loss='categorical_crossentropy', optimizer=tf.keras.optimizers.Adam(learning_rate=hp['learning_rate']), metrics=['accuracy'])
-
-# Retrain the model using X_train_reduced and X_val_reduced
-model.fit(
-    X_train_reduced,
-    y_train_full,
-    validation_data=(X_val_reduced, y_val),
-    epochs=hp['epochs'],
-    batch_size=hp['batch_size'],
-    verbose=1
-)
-# Predict the classes for the validation set
-y_val_pred = model.predict(X_val_reduced)
-y_val_pred_classes = np.argmax(y_val_pred, axis=1)
-y_val_true_classes = np.argmax(y_val, axis=1)
-
-# Compute the confusion matrix
-conf_matrix = confusion_matrix(y_val_true_classes, y_val_pred_classes)
-print("Confusion Matrix:")
-print(conf_matrix)
-
-# Compute classification report for sensitivity and specificity
-class_report = classification_report(y_val_true_classes, y_val_pred_classes, target_names=[str(i) for i in range(num_classes)])
-print("Classification Report:")
-print(class_report)
-# Evaluate the retrained model on the reduced validation set
-loss, accuracy = model.evaluate(X_val_reduced, y_val, verbose=0)
-print(f"Retrained Model Validation Accuracy: {accuracy*100:.2f}% vs original: {baseline_accuracy*100:.2f}%")
