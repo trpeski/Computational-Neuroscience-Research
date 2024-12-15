@@ -8,8 +8,11 @@ from sklearn.metrics import classification_report, ConfusionMatrixDisplay
 import sys
 import os
 
-sys.path.append(os.getcwd() + '/code')
-import utils.data_explorer as de
+import os,sys
+sys.path.append(os.getcwd())
+import data_explorer as de
+
+results_path = 'D:/Eleftheria/workspace/Computational-Neuroscience-Research/High Predictive Power Neurons/results'
 
 # OG Hpps 
 allhpps = {
@@ -89,4 +92,6 @@ plt.title("Feature Importance After Hyperparameter Optimization", fontsize=16, f
 plt.legend(fontsize=12)
 plt.grid(True, alpha=0.6)
 plt.tight_layout()
-plt.savefig('/home/psilou/code/misc/tony/data/feature_importance/regr4.png')
+filename = 'regr4.png'
+plt.savefig(f'{results_path}/{filename}')
+print(f'{results_path}/{filename}')
