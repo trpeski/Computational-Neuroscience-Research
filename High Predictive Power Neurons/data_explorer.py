@@ -59,7 +59,7 @@ frames_to_keep = {
     }
 }
 
-base_path = f'D:/Eleftheria/workspace/data'
+base_path = f'E:/Eleftheria/workspace/data'
 
 def sample_from_list (list, n, replace) :
     return np.random.choice(list, size=n, replace=replace)
@@ -84,9 +84,9 @@ def st_id (id) :
     return f'V{id}'
 
 def unst_id (id) :
-    if id[0] == 'V' :
-        return id[1:]
-    return id
+    if str(id)[0] == 'V' :
+        return str(id)[1:]
+    return str(id)
 
 def st_list (list) :
     return [st_id(l) for l in list]
@@ -1388,3 +1388,6 @@ def get_wavelike_scores_for_all_params_path (target_ncnt, input_image_size, i) :
 def get_wavelike_scores_for_all_params (target_ncnt, input_image_size, i) :
     path = get_wavelike_scores_for_all_params_path (target_ncnt, input_image_size, i)
     return pickle.load(open(path, 'rb'))
+
+def get_frps (mouse) :
+    return pd.read_feather(f'{base_path}/frps/mouse{mouse}_stimuli_frps.feather')

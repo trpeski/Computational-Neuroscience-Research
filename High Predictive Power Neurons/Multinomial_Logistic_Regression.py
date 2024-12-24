@@ -5,14 +5,18 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import classification_report, ConfusionMatrixDisplay
-import sys
-import os
+
+import base_functions as bf
 
 import os,sys
 sys.path.append(os.getcwd())
 import data_explorer as de
+from sklearn.feature_selection import mutual_info_classif
+import tensorflow as tf
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, Conv1D, Flatten, Dropout
+from tensorflow.keras.optimizers import Adam
 
-results_path = 'D:/Eleftheria/workspace/Computational-Neuroscience-Research/High Predictive Power Neurons/results'
 
 # OG Hpps 
 allhpps = {
@@ -21,27 +25,17 @@ allhpps = {
     # Other layers truncated for brevity
 }
 
-# Function to import neuron data
-def import_data(layer, rop=None, area='V1', hpp=None):
-    neurons = de.get_generic_filtered_neurons('3', False, area, layer, rop)
-    print(f"Number of neurons: {len(neurons)}")
-    y = de.get_angles_per_frame('3')
-    X = de.get_spiketrains('3', False).iloc[y['2pf']][de.st_list(neurons)]
-    return X, y['class']
+# Load the data for V1 area layers 2, 3, and 4 only ROP(reliable orientation prefrence) neurons 
+X, y = bf.import_data('L234', rop=True, area='V1')
 
-# Load the data
-X, y = import_data('L234', rop=True, area='V1')
-
-# Standardize features
-scaler = StandardScaler()
-X_scaled = pd.DataFrame(scaler.fit_transform(X), columns=X.columns)
 
 # Split the data
-X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
 # Hyperparameter tuning for Logistic Regression
-logistic = LogisticRegression(max_iter=10, multi_class='multinomial', solver='lbfgs')
-params = {'C': [0.01, 0.1, 1.0, 5.0], 'penalty': ['l1','l2'], 'solver': ['liblinear', 'saga']}
+maxiter = 10
+logistic = LogisticRegression(max_iter=maxiter, multi_class='multinomial')
+params = {'C': [1/200], 'penalty': ['l1'], 'solver': ['saga']}
 grid_search = GridSearchCV(logistic, param_grid=params, cv=2, scoring='accuracy')
 grid_search.fit(X_train, y_train)
 
@@ -62,14 +56,33 @@ print(classification_report(y_test, y_pred))
 # Confusion Matrix Display
 ConfusionMatrixDisplay.from_estimator(best_logistic, X_test, y_test, cmap='Blues')
 plt.show()
+
+print(f"shape of coef: {best_logistic.coef_.shape}")
+
 feature_importances = 0
 # Feature Importance
 if 'l1' in grid_search.best_params_['penalty']:
-    feature_importances = pd.Series(best_logistic.coef_.flatten(), index=X.columns).abs()
+    feature_weights_matrix = pd.DataFrame(best_logistic.coef_)
+    feature_importances = pd.Series(np.mean(np.abs(best_logistic.coef_), axis=0), index=X.columns)
 else:
     print("Feature importance analysis is not supported for non-sparse penalties (e.g., L2).")
 
-important_features = feature_importances[feature_importances > 0].sort_values()
+print(feature_weights_matrix)
+path = f'{bf.results_path}/feature_weight_matrix_iters={maxiter}.feather'
+feature_weights_matrix.to_feather(path)
+total_features = len(feature_importances)
+feature_keep_matrix = (feature_weights_matrix != 0).astype(int)
+print("Features kept:")
+print(feature_keep_matrix)
+print('Perc of features kept per class:')
+print(100*feature_keep_matrix.mean(axis=1))
+print('Perc of classes that kept the feature:')
+print(100*feature_keep_matrix.mean(axis=0))
+print()
+
+#important_features = feature_importances[feature_importances >= 0].sort_values()
+
+important_features = feature_importances.abs().sort_values(ascending=True)
 
 # Normalization
 important_features_normalized = (important_features - important_features.min()) / (important_features.max() - important_features.min())
@@ -80,6 +93,9 @@ plt.plot(important_features_normalized.index, important_features_normalized, mar
 plt.axhline(important_features_normalized.mean(), color='red', linestyle='--', label='Mean Importance')
 plt.axhline(important_features_normalized.mean() + important_features_normalized.std(), color='green', linestyle='--', label='Mean + 1 Std')
 plt.axhline(important_features_normalized.mean() - important_features_normalized.std(), color='green', linestyle='--', label='Mean - 1 Std')
+
+# Plot a line where the highest 37 coefficients start 
+plt.axvline(x=total_features - 37, color='purple', linestyle='--', label='Top 37 Features')
 
 # Highlighting original HPPs
 hpps_indices = [i for i, neuron in enumerate(important_features_normalized.index) if neuron in allhpps[3]]
@@ -93,5 +109,55 @@ plt.legend(fontsize=12)
 plt.grid(True, alpha=0.6)
 plt.tight_layout()
 filename = 'regr4.png'
-plt.savefig(f'{results_path}/{filename}')
-print(f'{results_path}/{filename}')
+plt.savefig(f'{bf.results_path}/{filename}')
+print(f'{bf.results_path}/{filename}')
+
+# Save the feature importance into a feather file
+path = f'{bf.results_path}/feature_importances_lasso.feather'
+important_features.to_frame().reset_index().rename(columns={'index': 'Neuron', 0: 'Importance'}).to_feather(path)
+
+# Filter the features kept by Lasso
+print("important features .index is ", important_features[important_features != 0].index)
+kept_features = important_features[important_features != 0].index
+X_train_kept = X_train[kept_features]
+X_test_kept = X_test[kept_features]
+
+
+
+# TRAIN ANOTHER MODEL WITH THE SELECTED FEATURES (CNN)
+
+# Reshape data for CNN
+X_train_cnn = np.expand_dims(X_train_kept.values, axis=2)
+X_test_cnn = np.expand_dims(X_test_kept.values, axis=2)
+
+# Define the CNN model
+model = Sequential([
+    Conv1D(filters=64, kernel_size=3, activation='relu', input_shape=(X_train_cnn.shape[1], 1)),
+    Dropout(0.5),
+    Conv1D(filters=32, kernel_size=3, activation='relu'),
+    Flatten(),
+    Dense(100, activation='relu'),
+    Dense(len(np.unique(y_train)), activation='softmax')
+])
+
+# Compile the model
+model.compile(optimizer=Adam(learning_rate=0.001), loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+
+# Train the model
+history = model.fit(X_train_cnn, y_train, epochs=50, batch_size=32, validation_data=(X_test_cnn, y_test))
+
+# Evaluate the model
+test_loss, test_accuracy = model.evaluate(X_test_cnn, y_test)
+print(f"Test Accuracy: {test_accuracy:.4f}")
+
+# Plot training history
+plt.figure(figsize=(12, 7))
+plt.plot(history.history['accuracy'], label='Train Accuracy')
+plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
+plt.xlabel('Epochs', fontsize=14, fontweight='bold')
+plt.ylabel('Accuracy', fontsize=14, fontweight='bold')
+plt.title('CNN Training and Validation Accuracy', fontsize=16, fontweight='bold')
+plt.legend(fontsize=12)
+plt.grid(True, alpha=0.6)
+plt.tight_layout()
+plt.show()
