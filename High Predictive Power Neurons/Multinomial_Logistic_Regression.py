@@ -33,9 +33,9 @@ X, y = bf.import_data('L234', rop=True, area='V1')
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
 # Hyperparameter tuning for Logistic Regression
-maxiter = 10
+maxiter = 1000
 logistic = LogisticRegression(max_iter=maxiter, multi_class='multinomial')
-params = {'C': [1/200], 'penalty': ['l1'], 'solver': ['saga']}
+params = {'C': [1/150], 'penalty': ['l1'], 'solver': ['saga']}
 grid_search = GridSearchCV(logistic, param_grid=params, cv=2, scoring='accuracy')
 grid_search.fit(X_train, y_train)
 
@@ -84,6 +84,9 @@ print()
 
 important_features = feature_importances.abs().sort_values(ascending=True)
 
+path = f'{bf.results_path}/feature_importances_lasso.feather' 
+important_features.to_frame().reset_index().rename(columns={'index': 'Neuron', 0: 'Importance'}).to_feather(path)
+
 # Normalization
 important_features_normalized = (important_features - important_features.min()) / (important_features.max() - important_features.min())
 
@@ -111,53 +114,4 @@ plt.tight_layout()
 filename = 'regr4.png'
 plt.savefig(f'{bf.results_path}/{filename}')
 print(f'{bf.results_path}/{filename}')
-
-# Save the feature importance into a feather file
-path = f'{bf.results_path}/feature_importances_lasso.feather'
-important_features.to_frame().reset_index().rename(columns={'index': 'Neuron', 0: 'Importance'}).to_feather(path)
-
-# Filter the features kept by Lasso
-print("important features .index is ", important_features[important_features != 0].index)
-kept_features = important_features[important_features != 0].index
-X_train_kept = X_train[kept_features]
-X_test_kept = X_test[kept_features]
-
-
-
-# TRAIN ANOTHER MODEL WITH THE SELECTED FEATURES (CNN)
-
-# Reshape data for CNN
-X_train_cnn = np.expand_dims(X_train_kept.values, axis=2)
-X_test_cnn = np.expand_dims(X_test_kept.values, axis=2)
-
-# Define the CNN model
-model = Sequential([
-    Conv1D(filters=64, kernel_size=3, activation='relu', input_shape=(X_train_cnn.shape[1], 1)),
-    Dropout(0.5),
-    Conv1D(filters=32, kernel_size=3, activation='relu'),
-    Flatten(),
-    Dense(100, activation='relu'),
-    Dense(len(np.unique(y_train)), activation='softmax')
-])
-
-# Compile the model
-model.compile(optimizer=Adam(learning_rate=0.001), loss='sparse_categorical_crossentropy', metrics=['accuracy'])
-
-# Train the model
-history = model.fit(X_train_cnn, y_train, epochs=50, batch_size=32, validation_data=(X_test_cnn, y_test))
-
-# Evaluate the model
-test_loss, test_accuracy = model.evaluate(X_test_cnn, y_test)
-print(f"Test Accuracy: {test_accuracy:.4f}")
-
-# Plot training history
-plt.figure(figsize=(12, 7))
-plt.plot(history.history['accuracy'], label='Train Accuracy')
-plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
-plt.xlabel('Epochs', fontsize=14, fontweight='bold')
-plt.ylabel('Accuracy', fontsize=14, fontweight='bold')
-plt.title('CNN Training and Validation Accuracy', fontsize=16, fontweight='bold')
-plt.legend(fontsize=12)
-plt.grid(True, alpha=0.6)
-plt.tight_layout()
 plt.show()
