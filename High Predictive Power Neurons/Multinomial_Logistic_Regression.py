@@ -59,18 +59,18 @@ plt.show()
 
 print(f"shape of coef: {best_logistic.coef_.shape}")
 
-feature_importances = 0
-# Feature Importance
-if 'l1' in grid_search.best_params_['penalty']:
-    feature_weights_matrix = pd.DataFrame(best_logistic.coef_)
-    feature_importances = pd.Series(np.mean(np.abs(best_logistic.coef_), axis=0), index=X.columns)
-else:
-    print("Feature importance analysis is not supported for non-sparse penalties (e.g., L2).")
-
-print(feature_weights_matrix)
+# Feature Weights (coefficient of each feature (column) for each class (row))
+feature_weights_matrix  = pd.DataFrame(best_logistic.coef_)
 path = f'{bf.results_path}/feature_weight_matrix_iters={maxiter}.feather'
 feature_weights_matrix.to_feather(path)
+
+# Feature Importances (average of absolute value of coefficients across classes for each feature)
+feature_importances     = pd.Series(np.mean(np.abs(best_logistic.coef_), axis=0), index=X.columns)
 total_features = len(feature_importances)
+
+# Matrix where columns are features and rows are classes
+# The element is 1 if the feature is important for a class
+# A feature is important if it is not 0
 feature_keep_matrix = (feature_weights_matrix != 0).astype(int)
 print("Features kept:")
 print(feature_keep_matrix)
@@ -81,7 +81,6 @@ print(100*feature_keep_matrix.mean(axis=0))
 print()
 
 #important_features = feature_importances[feature_importances >= 0].sort_values()
-
 important_features = feature_importances.abs().sort_values(ascending=True)
 
 path = f'{bf.results_path}/feature_importances_lasso.feather' 
