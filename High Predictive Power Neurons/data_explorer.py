@@ -59,6 +59,14 @@ frames_to_keep = {
     }
 }
 
+# OG Hpps 
+allhpps = {
+    3: ['V1620', 'V1713', 'V1937', 'V2205', 'V2275', 'V2600', 'V2647', 'V3411', 'V3451', 'V3594', 'V4316', 'V4380', 'V4451', 'V4475', 'V4631', 'V4724', 'V4845', 'V4904', 'V4928', 'V4933', 'V4981', 'V5020', 'V5035', 'V5274', 'V5583', 'V5600', 'V5639', 'V5699', 'V5825', 'V5835', 'V5898', 'V5968', 'V6268', 'V8270', 'V8622', 'V8783', 'V8920'],
+    4: ['V166', 'V195', 'V223', 'V299', 'V306', 'V341', 'V351', 'V357', 'V369', 'V422', 'V448', 'V483', 'V486', 'V724', 'V960', 'V977', 'V1055', 'V1067', 'V1070', 'V1077', 'V1792', 'V1880', 'V1997', 'V2043', 'V2077', 'V2164', 'V2423', 'V3293', 'V3449', 'V3460', 'V3517', 'V3768', 'V4994', 'V5052', 'V5172', 'V5326', 'V5376', 'V5381', 'V5465', 'V5528', 'V5535', 'V5549', 'V5621', 'V5625', 'V5664', 'V6643', 'V6660', 'V6685', 'V6687', 'V6766', 'V6787', 'V6921', 'V7039', 'V7163'],
+    # Other layers truncated for brevity
+}
+
+
 base_path = f'E:/Eleftheria/workspace/data'
 
 def sample_from_list (list, n, replace) :
@@ -229,9 +237,11 @@ def get_all_pair_euclidean_distance (mouse) :
 #TODO
 def get_sttc (mouse, spont) :
     if spont :
-        path = f'/home/savaglio/Firing_Prediction/Mouse_{mouse}/mouse{mice[str(mouse)]}_IoannisThreshold_3nz_1.5dc_full_60min_500-shifts_0-dt_pairs.feather'
+        #path = f'/home/savaglio/Firing_Prediction/Mouse_{mouse}/mouse{mice[str(mouse)]}_IoannisThreshold_3nz_1.5dc_full_60min_500-shifts_0-dt_pairs.feather'
+        path = f'{base_path}/sttc/mouse{mice[str(mouse)]}_IoannisThreshold_3nz_1.5dc_full_60min_500-shifts_0-dt_pairs.feather'
     else :
-        path = f'/home/savaglio/Firing_Prediction/Mouse_{mouse}/Mouse{mouse}_Stimuli_Eventograms_All_Neurons_3nz_1.5dc_500-shifts_0-dt_pairs.feather'
+        #path = f'/home/savaglio/Firing_Prediction/Mouse_{mouse}/Mouse{mouse}_Stimuli_Eventograms_All_Neurons_3nz_1.5dc_500-shifts_0-dt_pairs.feather'
+        path = f'{base_path}/sttc/Mouse{mouse}_Stimuli_Eventograms_All_Neurons_3nz_1.5dc_500-shifts_0-dt_pairs.feather'
     
     df = pd.read_feather(path)
     return df
@@ -905,8 +915,11 @@ def get_rare_frames (mouse, spont, layer) :
     
     return rare_frames
 
-def get_class_of_angles (angle) :
+def get_class_of_angle (angle) :
     return int((angle+22.5/2)//22.5)
+
+def get_class_of_angles (angle) :
+    return ((angle+22.5/2)//22.5).astype(int)
 
 def get_angles_per_frame (mouse) :
     spiketrains = pd.read_feather(f'{base_path}/spiketrains/m{mouse}_(NOFILTER)_EVENTOGRAMS_with_angles.feather')[['2pf','ang']]

@@ -5,6 +5,7 @@ import pickle
 import os,sys
 import data_explorer as de
 import base_functions as bf
+from sklearn.metrics.pairwise import cosine_similarity
 
 spiketrains = bf.import_data('L234', rop=True, area='V1', frps=True)[0]
 neurons = spiketrains.columns.values.tolist()
@@ -15,20 +16,22 @@ features_reduced = 0
 grouped = {}
 while(len(neurons) > 0) :
     n = neurons[0]
-    neurons = neurons[1:]#.remove(n)
-    print(f'{len(neurons)} ({features_reduced})', end='\r')
-    
-    st = spiketrains[n].values.tolist()
+    st = spiketrains[n].values.reshape(1, -1)
     similar_neurons = [n]
+    
+    neurons = neurons[1:]
+    print(f'{len(neurons)} ({features_reduced})', end='\r')
     
     remaining_neurons = neurons.copy()
     for neuron in remaining_neurons:
-        if st == spiketrains[neuron].values.tolist() :
+        st_neuron = spiketrains[neuron].values.reshape(1, -1)
+        similarity = cosine_similarity(st, st_neuron)[0, 0]
+        if similarity > 0.8:
             similar_neurons.append(neuron)
             neurons.remove(neuron)
     
     if len(similar_neurons) > 1 :
-        features_reduced+=len(similar_neurons)-1
+        features_reduced += len(similar_neurons) - 1
         print('\t\tFound redundancy', features_reduced, end='\r')
         
     grouped[n] = set(similar_neurons)

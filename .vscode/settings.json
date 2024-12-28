@@ -1,0 +1,5 @@
+{
+    "python.analysis.extraPaths": [
+        "./High Predictive Power Neurons"
+    ]
+}

@@ -1,25 +1,9 @@
-import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import train_test_split, GridSearchCV
-from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import classification_report, ConfusionMatrixDisplay
-
 import base_functions as bf
+import matplotlib.pyplot as plt
 
-import os,sys
-sys.path.append(os.getcwd())
-import data_explorer as de
-from sklearn.feature_selection import mutual_info_classif
-import tensorflow as tf
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Conv1D, Flatten, Dropout
-from tensorflow.keras.optimizers import Adam
+maxiter = 1
 
-frps_data = True # frps is True, else spikes
-
-frps_data_flag = '_frps' if frps_data else ''
 
 # OG Hpps 
 allhpps = {
@@ -28,48 +12,15 @@ allhpps = {
     # Other layers truncated for brevity
 }
 
-# Load the data for V1 area layers 2, 3, and 4 only ROP(reliable orientation prefrence) neurons 
-X, y = bf.import_data('L234', rop=True, area='V1', frps=frps_data)
-
-# Split the data
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-# Hyperparameter tuning for Logistic Regression
-maxiter = 1000
-logistic = LogisticRegression(max_iter=maxiter, multi_class='multinomial')
-params = {'C': [1/150], 'penalty': ['l1'], 'solver': ['saga']}
-grid_search = GridSearchCV(logistic, param_grid=params, cv=2, scoring='accuracy')
-grid_search.fit(X_train, y_train)
-
-# Optimal model
-best_logistic = grid_search.best_estimator_
-
-# Train the best model
-best_logistic.fit(X_train, y_train)
-
-# Predictions
-y_pred = best_logistic.predict(X_test)
-
-# Evaluation
-print("Best Logistic Regression Hyperparameters:", grid_search.best_params_)
-print("Classification Report:")
-print(classification_report(y_test, y_pred))
-
-# Confusion Matrix Display
-ConfusionMatrixDisplay.from_estimator(best_logistic, X_test, y_test, cmap='Blues')
-plt.show()
-
-print(f"shape of coef: {best_logistic.coef_.shape}")
-
 # Feature Weights (coefficient of each feature (column) for each class (row))
-feature_weights_matrix  = pd.DataFrame(best_logistic.coef_)
-path = f'{bf.results_path}/feature_weight_matrix_iters={maxiter}{frps_data_flag}.feather'
-feature_weights_matrix.to_feather(path)
+path = f'{bf.results_path}/feature_weight_matrix_iters={maxiter}.feather'
+feature_weights_matrix = pd.read_feather(path)
 print(feature_weights_matrix)
 
 # Feature Importances (average of absolute value of coefficients across classes for each feature)
-feature_importances     = pd.Series(np.mean(np.abs(best_logistic.coef_), axis=0), index=X.columns)
+feature_importances     = pd.Series(feature_weights_matrix.abs().mean(axis=0), index=feature_weights_matrix.columns)
 total_features = len(feature_importances)
+print(feature_importances)
 
 # Matrix where columns are features and rows are classes
 # The element is 1 if the feature is important for a class
@@ -86,14 +37,13 @@ print()
 #important_features = feature_importances[feature_importances >= 0].sort_values()
 important_features = feature_importances.abs().sort_values(ascending=True)
 
-path = f'{bf.results_path}/feature_importances_lasso{frps_data_flag}.feather' 
-print(important_features)
-important_features.to_frame().reset_index().rename(columns={'index': 'Neuron', 0: 'Importance'}).to_feather(path)
-important_features = important_features.to_frame().reset_index().rename(columns={'index': 'Neuron', 0: 'Importance'}).set_index('Neuron')['Importance']
-print(important_features)
+path = f'{bf.results_path}/feature_importances_lasso.feather' 
+important_features = pd.reaf.to_frame().reset_index().rename(columns={'index': 'Neuron', 0: 'Importance'}).to_feather(path)
 
 # Normalization
 important_features_normalized = (important_features - important_features.min()) / (important_features.max() - important_features.min())
+
+
 
 # Plot
 plt.figure(figsize=(12, 7))
@@ -116,7 +66,7 @@ plt.title("Feature Importance After Hyperparameter Optimization", fontsize=16, f
 plt.legend(fontsize=12)
 plt.grid(True, alpha=0.6)
 plt.tight_layout()
-filename = f'regr4{frps_data_flag}.png'
+filename = 'regr4.png'
 plt.savefig(f'{bf.results_path}/{filename}')
 print(f'{bf.results_path}/{filename}')
 plt.show()
