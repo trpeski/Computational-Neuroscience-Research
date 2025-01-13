@@ -30,74 +30,48 @@ mi_kept_series = pd.Series(mi_kept, index=kept_features)
 mi_hpps = mutual_info_classif(X_hpps, y, discrete_features=True)
 mi_hpps_series = pd.Series(mi_hpps, index=allhpps[3])
 
-# Plot mutual information for selected features
+# Normalize important features
+important_features_normalized = (important_features - important_features.min()) / (important_features.max() - important_features.min())
+
+# Ensure the sizes match for plotting
+normalized_kept = important_features_normalized.loc[kept_features]
+normalized_hpps = important_features_normalized.loc[allhpps[3]]
+# Prepare data with all features
+all_features = X.columns
+
+# Calculate mutual information for all features
+mi_all = mutual_info_classif(X, y, discrete_features=True)
+mi_all_series = pd.Series(mi_all, index=all_features)
+
+# Normalize all features
+normalized_all = important_features_normalized.reindex(all_features).fillna(0)
+
+# take intersection of HPP and selected neurons
+intersection = list(set(X_hpps.columns) & set(X_kept.columns))
+
+# Plot all features
 plt.figure(figsize=(12, 7))
-mi_kept_series.sort_values(ascending=False).plot(kind='bar', color='blue', alpha=0.7)
-plt.xlabel('Neuron', fontsize=14, fontweight='bold')
+plt.scatter(normalized_all, mi_all_series, color='gray', alpha=0.5, label='All Features')
+plt.scatter(normalized_kept, mi_kept_series, color='blue', label='Selected Features')
+plt.scatter(normalized_hpps, mi_hpps_series, color='red', label='HPP Features')
+# Plot mean horizontal lines for each category
+plt.axhline(y=mi_all_series.mean(), color='gray', linestyle='--', linewidth=1, label='Mean All Features')
+plt.axhline(y=mi_kept_series.mean(), color='blue', linestyle='--', linewidth=1, label='Mean Selected Features')
+plt.axhline(y=mi_hpps_series.mean(), color='red', linestyle='--', linewidth=1, label='Mean HPP Features')
+# Plot intersection features
+if intersection:
+    normalized_intersection = important_features_normalized.loc[intersection]
+    mi_intersection_series = mi_kept_series.loc[intersection]
+    plt.scatter(normalized_intersection, mi_intersection_series, color='green', label='Intersection Features')
+    plt.axhline(y=mi_intersection_series.mean(), color='green', linestyle='--', linewidth=1, label='Mean Intersection Features')
+    normalized_intersection = important_features_normalized.loc[intersection]
+    mi_intersection_series = mi_kept_series.loc[intersection]
+    plt.scatter(normalized_intersection, mi_intersection_series, color='green', label='Intersection Features')
+plt.xlabel('Normalized Importance', fontsize=14, fontweight='bold')
 plt.ylabel('Mutual Information', fontsize=14, fontweight='bold')
-plt.title('Mutual Information of Selected Features with Output', fontsize=16, fontweight='bold')
+plt.title('Normalized Importance vs Mutual Information', fontsize=16, fontweight='bold')
+plt.legend(fontsize=12)
 plt.grid(True, alpha=0.6)
 plt.tight_layout()
 plt.show()
 
-# Plot mutual information for HPP features
-plt.figure(figsize=(12, 7))
-mi_hpps_series.sort_values(ascending=False).plot(kind='bar', color='red', alpha=0.7)
-plt.xlabel('Neuron', fontsize=14, fontweight='bold')
-plt.ylabel('Mutual Information', fontsize=14, fontweight='bold')
-plt.title('Mutual Information of HPP Features with Output', fontsize=16, fontweight='bold')
-plt.grid(True, alpha=0.6)
-plt.tight_layout()
-plt.show()
-
-# Plot histogram comparing mutual information distributions
-plt.figure(figsize=(12, 7))
-plt.hist(mi_kept, bins=20, alpha=0.7, label='Selected by Lasso', color='blue')
-plt.hist(mi_hpps, bins=20, alpha=0.7, label='HPP Features', color='red')
-plt.xlabel('Mutual Information', fontsize=14, fontweight='bold')
-plt.ylabel('Frequency', fontsize=14, fontweight='bold')
-plt.title('Histogram of Mutual Information Distributions', fontsize=16, fontweight='bold')
-plt.legend(loc='upper right', fontsize=12)
-plt.grid(True, alpha=0.6)
-plt.tight_layout()
-plt.show()
-
-# print the means
-print(f'Mean of mutual information for selected features: {np.mean(mi_kept)}')
-print(f'Mean of mutual information for HPP features: {np.mean(mi_hpps)}')
-
-# Perform Mann-Whitney U test
-stat, p_value = mannwhitneyu(mi_kept, mi_hpps, alternative='two-sided')
-print(f'Mann-Whitney U test statistic: {stat}, p-value: {p_value}')
-
-# Generate null distribution by sampling random features
-n_iterations = 10
-null_distributions = []
-
-for _ in range(n_iterations):
-    random_features = np.random.choice(X.columns, size=37, replace=False)
-    X_random = X[random_features]
-    mi_random = mutual_info_classif(X_random, y)
-    null_distributions.append(mi_random)
-
-null_distributions = np.array(null_distributions).flatten()
-
-# Plot histogram comparing mutual information distributions with null distribution
-plt.figure(figsize=(12, 7))
-bincnt = 10
-weights_kept = np.ones_like(mi_kept) / len(mi_kept)
-weights_hpps = np.ones_like(mi_hpps) / len(mi_hpps)
-weights_null = np.ones_like(null_distributions) / len(null_distributions)
-
-plt.hist(mi_kept, bins=bincnt, alpha=0.7, label='Selected by Lasso', color='blue', weights=weights_kept)
-plt.hist(mi_hpps, bins=bincnt, alpha=0.7, label='HPP Features', color='red', weights=weights_hpps)
-plt.hist(null_distributions, bins=bincnt, alpha=0.7, label='Null Distribution', color='green', weights=weights_null)
-#plt.hist(mi_hpps, bins=bincnt, alpha=0.7, label='HPP Features', color='red')
-#plt.hist(null_distributions, bins=bincnt, alpha=0.7, label='Null Distribution', color='green')
-plt.xlabel('Mutual Information', fontsize=14, fontweight='bold')
-plt.ylabel('Frequency', fontsize=14, fontweight='bold')
-plt.title('Histogram of Mutual Information Distributions with Null', fontsize=16, fontweight='bold')
-plt.legend(loc='upper right', fontsize=12)
-plt.grid(True, alpha=0.6)
-plt.tight_layout()
-plt.show()
