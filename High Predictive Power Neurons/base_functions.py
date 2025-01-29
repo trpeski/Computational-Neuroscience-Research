@@ -26,3 +26,16 @@ def import_data(layer, rop=None, area='V1', hpp=None, frps=False) :
         y = y['class']
     
     return X, y
+
+def import_full_data(frps=False):
+    if frps :
+        y = de.get_directions('3').flatten()
+        y = de.get_class_of_angles(y)
+        X = de.get_frps('3')
+        X.columns = ['V' + col for col in X.columns]
+    else :
+        y = de.get_angles_per_frame('3')
+        X = de.get_spiketrains('3', False)
+        y = y['class']
+    
+    return X, y
